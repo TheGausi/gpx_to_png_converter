@@ -20,7 +20,7 @@ def gpx_to_png_clean(gpx_file_path, png_output_path):
         return
 
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(lons, lats, color='#bebebe', linewidth=2)
+    ax.plot(lons, lats, color='#bebebe', linewidth=6)
     ax.axis('off')
     ax.set_aspect('equal', adjustable='box')
     fig.patch.set_alpha(0.0)
