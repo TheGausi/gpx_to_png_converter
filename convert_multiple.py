@@ -5,6 +5,12 @@ import gpxpy
 import matplotlib.pyplot as plt
 
 
+# Ausgabegröße und Rand in cm
+WIDTH_CM  = 13.0
+HEIGHT_CM =  5.9
+PAD_CM    =  0.7  # 7 mm auf jeder Seite
+
+
 def load_gpx_files(paths: list[str]) -> tuple[list[float], list[float]]:
     """Lädt alle GPX-Dateien und gibt eine zusammengeführte Koordinatenliste zurück."""
     all_lats, all_lons = [], []
@@ -27,16 +33,28 @@ def load_gpx_files(paths: list[str]) -> tuple[list[float], list[float]]:
     return all_lats, all_lons
 
 
-def render(lats: list[float], lons: list[float], output_path: str) -> None:
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(lons, lats, color="#DF0037", linewidth=6)
+def render(lats: list[float], lons: list[float], output_path: str, portrait: bool = False) -> None:
+    w_cm, h_cm = (HEIGHT_CM, WIDTH_CM) if portrait else (WIDTH_CM, HEIGHT_CM)
+    fig, ax = plt.subplots(figsize=(w_cm / 2.54, h_cm / 2.54))
+    ax.plot(lons, lats, color="#DF0037", linewidth=4)
     ax.axis("off")
-    ax.set_aspect("equal", adjustable="box")
+
+    # Gleichmäßiger Innenrand – Axes-Bereich wird um PAD_CM auf jeder Seite eingerückt.
+    # bbox_inches="tight" wird bewusst NICHT verwendet, damit die Ausgabegröße
+    # exakt w_cm × h_cm bleibt.
+    fig.subplots_adjust(
+        left   = PAD_CM / w_cm,
+        right  = 1 - PAD_CM / w_cm,
+        bottom = PAD_CM / h_cm,
+        top    = 1 - PAD_CM / h_cm,
+    )
+
     fig.patch.set_alpha(0.0)
     ax.set_facecolor("none")
-    plt.savefig(output_path, dpi=300, bbox_inches="tight", pad_inches=0, transparent=True)
+    plt.savefig(output_path, dpi=300, transparent=True)
     plt.close()
-    print(f"Gespeichert: {output_path}")
+    ausrichtung = "hochkant" if portrait else "quer"
+    print(f"Gespeichert ({ausrichtung}, {w_cm:.1f}×{h_cm:.1f} cm, Rand {PAD_CM*10:.0f} mm): {output_path}")
 
 
 def resolve_paths(args: list[str]) -> list[str]:
@@ -51,24 +69,43 @@ def resolve_paths(args: list[str]) -> list[str]:
     return resolved
 
 
-def main() -> None:
-    # Aufruf: python gpx_to_png.py tour1.gpx tour2.gpx tour3.gpx [-o ausgabe.png]
-    # Oder:   python gpx_to_png.py *.gpx
-    # Ohne Argumente: alle *.gpx im aktuellen Verzeichnis
+def parse_args(argv: list[str]) -> tuple[list[str], str, bool]:
+    """
+    Gibt zurück: (gpx_pfade, ausgabepfad, portrait)
 
-    args = sys.argv[1:]
-
+    Flags:
+      -o <datei>          Ausgabedatei (Standard: combined_track.png)
+      -p / --portrait     Hochkant statt Quer
+    """
+    args = argv[:]
+    portrait = False
     output_path = "combined_track.png"
+
+    for flag in ("-p", "--portrait"):
+        if flag in args:
+            portrait = True
+            args.remove(flag)
+
     if "-o" in args:
         idx = args.index("-o")
         output_path = args[idx + 1]
         args = args[:idx] + args[idx + 2:]
 
-    if not args:
-        args = ["*.gpx"]
+    return args, output_path, portrait
+
+
+def main() -> None:
+    # Aufruf: python gpx_to_png.py tour1.gpx tour2.gpx [-o ausgabe.png] [-p]
+    # Oder:   python gpx_to_png.py *.gpx --portrait
+    # Ohne Argumente: alle *.gpx im aktuellen Verzeichnis
+
+    gpx_args, output_path, portrait = parse_args(sys.argv[1:])
+
+    if not gpx_args:
+        gpx_args = ["*.gpx"]
         print("Keine Dateien angegeben – suche nach *.gpx im aktuellen Verzeichnis …")
 
-    gpx_files = resolve_paths(args)
+    gpx_files = resolve_paths(gpx_args)
 
     if not gpx_files:
         print("Keine GPX-Dateien gefunden.")
@@ -82,7 +119,7 @@ def main() -> None:
         sys.exit(1)
 
     print(f"\nGesamt: {len(lats)} Punkte → wird gerendert …")
-    render(lats, lons, output_path)
+    render(lats, lons, output_path, portrait=portrait)
 
 
 if __name__ == "__main__":
